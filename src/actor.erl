@@ -22,6 +22,18 @@ ops() ->
 ops(I, J, plus) -> I + J;
 ops(I, J, minus) -> I - J.
 
+% accumulate messages in Mailbox
+acc() -> lists:reverse(acc([])).
+acc(Acc) ->
+  receive
+    done ->
+      Acc;
+    Msg ->
+      % io:format("receive: ~w~n", [Msg]),
+      acc([Msg|Acc])
+  end.
+
+% bank account state
 bank() -> bank(0).
 
 bank(Current) ->
@@ -44,7 +56,7 @@ bank(Current) ->
   after 1 -> timeout
   end.
 
-%% public APIs
+%% bank public APIs
 create() -> spawn(fun bank/0).
 
 store(Pid, Amount) ->
@@ -61,18 +73,51 @@ withdraw(Pid, Amount) ->
 
 show(Pid) -> Pid ! show.
 
-%%
+%% partitioning elements using actor
 partition(E, F) -> partition(E, F, {[], []}).
-
+%%% internal
 partition([], _, R) -> R;
 partition([H|T], F, {Ok, Ng}) ->
-  check(self(), H, F),
+  self() ! F(H),
   receive
     true -> partition(T, F, {[H|Ok], Ng});
     false -> partition(T, F, {Ok, [H|Ng]})
   after 0 -> {Ok, Ng}
   end.
 
+%% partitioning elements using actor with selective receive
+p(E, F) ->
+  {ok, Pid} = part(self()),
+  ok = p(E, F, Pid),
+  acc().
 
-check(Pid, E, F) ->
-  Pid ! F(E).
+%%% internal
+p([], _, _) -> ok;
+p([H|T], F, Pid) ->
+  Pid ! {F(H), H},
+  p(T, F, Pid).
+
+part(From) ->
+  {ok, spawn(actor, positive, [From])}.
+
+%%% receive messages which satisfy condition
+positive(From) ->
+  receive
+    {true, Msg} ->
+      % io:format("positive msg: ~w~n", [Msg]),
+      From ! Msg,
+      positive(From)
+  after
+    0 -> negative(From)
+  end.
+
+%%% receive messages which do not satisfy condition
+negative(From) ->
+  receive
+    {false, Msg} ->
+      % io:format("negative msg: ~w~n", [Msg]),
+      From ! Msg,
+      negative(From)
+  after
+    0 -> From ! done
+  end.
