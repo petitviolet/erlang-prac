@@ -1,6 +1,7 @@
 -module(sample).
 
--export([add/2, f/2]).
+-export([add/2, f/2, read_lines/1, read_lines/2]).
+-import(collection, [reverse/1]).
 
 add(0, 0) -> 0;
 add(I, J) -> I + J.
@@ -22,5 +23,28 @@ f(I, J) ->
      I + J =:= 10 -> 11;
      I + J < 100 -> I + J;
      true -> 999
+  end.
+
+%% file_name -> [content] separated by \n.
+read_lines(File) ->
+  {ok, Bin} = file:read_file(File),
+  Str = binary_to_list(Bin),
+  string:tokens(Str, "\n").
+
+%% file_name, f:str -> A
+read_lines(File, F) when is_list(File) ->
+  {ok, Io} = file:open(File, read),
+  R = read_lines(Io, F),
+  ok = file:close(Io),
+  R;
+read_lines(Io, F) -> read_lines(Io, F, []).
+
+read_lines(Io, F, Acc) ->
+  case file:read_line(Io) of
+    {ok, Line} ->
+      R = F(Line),
+      read_lines(Io, F, [R|Acc]);
+    eof ->
+      collection:reverse(Acc)
   end.
 
