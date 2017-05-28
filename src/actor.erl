@@ -121,3 +121,20 @@ negative(From) ->
   after
     0 -> From ! done
   end.
+
+
+%%% link each process
+countdown(0) ->
+  io:format("FINISH"),
+  exit(countdown_finish);
+countdown(I) ->
+  process_flag(trap_exit, true),
+  io:format("now: ~p~n", [I]),
+  timer:sleep(1000),
+  % spawn_link(fun() -> countdown(I - 1) end),
+  spawn_link(?MODULE, countdown, [I - 1]),
+  % link(Next),0
+  receive
+    _ -> ok
+  end.
+
